@@ -145,34 +145,59 @@
   .stage .card { position: absolute; left: 0; top: 0; transform-origin: 0 0; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
 
   /* ===== カード本体（mm単位） ===== */
+  /* --w/--h＝カードの大きさ、--k＝文字・余白の拡大率（LAYOUTS で指定） */
   .card {
-    width: 91mm; height: 55mm; background: #fff; color: #1E2638;
-    padding: 3mm 4mm 2.6mm; display: flex; flex-direction: column; gap: 0.9mm; overflow: hidden;
+    --w: 91mm; --h: 55mm; --k: 1;
+    width: var(--w); height: var(--h); background: #fff; color: #1E2638;
+    padding: calc(var(--k) * 3mm) calc(var(--k) * 4mm) calc(var(--k) * 2.6mm);
+    display: flex; flex-direction: column; gap: calc(var(--k) * 0.9mm); overflow: hidden; line-height: 1.3;
     font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .c-head { display: flex; justify-content: space-between; align-items: baseline; }
-  .c-title { font-size: 9.5pt; font-weight: 700; letter-spacing: 0.04em; }
-  .c-month { font-size: 8pt; font-weight: 700; }
-  .c-month b { font-size: 11pt; }
-  .c-info { display: flex; gap: 4mm; font-size: 6.8pt; white-space: nowrap; overflow: hidden; }
+  .c-title { font-size: calc(var(--k) * 9.5pt); font-weight: 700; letter-spacing: 0.04em; }
+  .c-month { font-size: calc(var(--k) * 8pt); font-weight: 700; }
+  .c-month b { font-size: calc(var(--k) * 11pt); }
+  .c-info { display: flex; gap: calc(var(--k) * 4mm); font-size: calc(var(--k) * 6.8pt); white-space: nowrap; overflow: hidden; }
   .c-info b { font-weight: 700; }
   .c-info .blank { color: #C0392B; }
-  .c-note, .c-legend { font-size: 6.2pt; display: flex; flex-wrap: wrap; gap: 0 3mm; align-items: center; line-height: 1.35; }
-  .c-legend span, .c-note span { display: inline-flex; align-items: center; gap: 0.8mm; white-space: nowrap; }
-  .c-mk { display: inline-block; width: 2.4mm; height: 2.4mm; }
+  .c-note, .c-legend { font-size: calc(var(--k) * 6.2pt); display: flex; flex-wrap: wrap; gap: 0 calc(var(--k) * 3mm); align-items: center; line-height: 1.35; }
+  .c-legend span, .c-note span { display: inline-flex; align-items: center; gap: calc(var(--k) * 0.8mm); white-space: nowrap; }
+  .c-mk { display: inline-block; width: calc(var(--k) * 2.4mm); height: calc(var(--k) * 2.4mm); }
   .c-mk.circle { border-radius: 50%; }
   .c-mk.square { border-radius: 0.4mm; }
-  .c-cal { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  .c-cal th { font-size: 5.6pt; font-weight: 700; height: 2.8mm; padding: 0; border: 0.15mm solid #C9CED6; background: #F2F4F7; }
-  .c-cal td { height: 3.55mm; padding: 0; text-align: center; vertical-align: middle; border: 0.15mm solid #C9CED6; font-size: 6.6pt; }
+  /* カレンダーは残りの高さいっぱいに広がる（大きいカードほどマスが高くなる） */
+  .c-cal {
+    flex: 1 1 auto; min-height: 0; display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: calc(var(--k) * 2.8mm) repeat(var(--weeks), minmax(0, 1fr));
+    border-top: 0.15mm solid #C9CED6; border-left: 0.15mm solid #C9CED6;
+  }
+  .c-cal > div {
+    display: grid; place-items: center; line-height: 1; min-height: 0;
+    border-right: 0.15mm solid #C9CED6; border-bottom: 0.15mm solid #C9CED6;
+    font-size: calc(var(--k) * 6.6pt);
+  }
+  .c-cal > .th { font-size: calc(var(--k) * 5.6pt); font-weight: 700; background: #F2F4F7; }
   .c-cal .sun { color: #D33; }
   .c-cal .sat { color: #2F5BC9; }
-  .c-cal .mk { display: inline-grid; place-items: center; width: 3.25mm; height: 3.25mm; font-weight: 700; font-size: 6.2pt; line-height: 1; }
+  .c-cal .mk { display: inline-grid; place-items: center; width: calc(var(--k) * 3.25mm); height: calc(var(--k) * 3.25mm); font-weight: 700; font-size: calc(var(--k) * 6.2pt); line-height: 1; }
   .c-cal .mk.circle { border-radius: 50%; }
   .c-cal .mk.square { border-radius: 0.5mm; }
-  .c-foot { margin-top: auto; font-size: 6.4pt; line-height: 1.35; }
-  .c-foot small { display: block; font-size: 5pt; color: #444; }
+  .c-foot { font-size: calc(var(--k) * 6.4pt); line-height: 1.35; }
+  .c-foot small { display: block; font-size: calc(var(--k) * 5pt); color: #444; }
+
+  /* 印刷サイズ選択 */
+  .sizes { display: grid; gap: 8px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sizes button {
+    font: inherit; min-height: 62px; cursor: pointer; padding: 6px 4px;
+    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px;
+    display: grid; align-content: center; gap: 2px;
+  }
+  .sizes button b { font-size: 16px; }
+  .sizes button span { font-size: 12px; color: var(--muted); }
+  .sizes button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .sizes button[aria-pressed="true"] span { color: var(--on-accent); opacity: .85; }
 
   /* 印刷用（画面では非表示） */
   .print-sheet, .print-error { display: none; }
@@ -182,8 +207,8 @@
     body { background: #fff; padding: 0; margin: 0; }
     .wrap { display: none !important; }
     .print-sheet {
-      display: grid; grid-template-columns: repeat(2, 91mm); grid-auto-rows: 55mm;
-      width: 182mm; margin: 11mm auto 0; page-break-after: avoid;
+      /* 列数・大きさ・上余白は JS（applySheetLayout）が LAYOUTS から設定 */
+      display: grid; margin-left: auto; margin-right: auto; page-break-after: avoid;
     }
     .print-sheet .card { outline: 0.2mm dashed #9AA0A8; outline-offset: -0.1mm; }
     body.blocked .print-sheet { display: none; }
@@ -199,7 +224,7 @@
 <div class="wrap">
   <header>
     <h1>出勤日案内カード</h1>
-    <p>名刺サイズ（91×55mm）× A4に10枚。入力内容は保存されません。</p>
+    <p>A4に10枚・8枚・6枚から選んで印刷。入力内容は保存されません。</p>
   </header>
 
   <div class="layout">
@@ -231,14 +256,19 @@
         <button type="button" class="add-btn" id="add-o2">＋ 他店をもう1店追加</button>
       </div>
 
+      <div class="step">
+        <div class="step-head"><span class="step-no">5</span>印刷サイズ</div>
+        <div class="sizes" id="sizes" role="group" aria-label="印刷サイズ"></div>
+      </div>
+
       <div class="msgs" id="msgs" aria-live="polite"></div>
-      <button type="button" class="print-btn" id="print">印刷する（A4に10枚）</button>
+      <button type="button" class="print-btn" id="print">印刷する</button>
       <p class="hint">印刷画面では「用紙：A4」「倍率：100%（実際のサイズ）」「余白：なし」にしてください。色が出ない場合は「背景のグラフィック」をオンにします。</p>
     </section>
 
     <!-- プレビュー -->
     <section class="panel preview" aria-label="見本">
-      <h2>見本（実物は名刺サイズ）</h2>
+      <h2 id="preview-title">見本</h2>
       <div class="stage" id="stage"></div>
       <p class="hint">白黒で印刷しても、当店は「○」、他店は「□」の形で見分けられます。</p>
     </section>
@@ -265,7 +295,14 @@ const COLORS = [
   { id: "blue",   name: "青",     bg: "#2F5BC9", fg: "#FFFFFF" },
   { id: "purple", name: "紫",     bg: "#7B4FC2", fg: "#FFFFFF" },
 ];
-const CARDS_PER_SHEET = 10;
+// 印刷サイズ（A4縦）。cols×rows 枚、1枚 w×h mm、k＝文字・余白の拡大率
+const LAYOUTS = {
+  10: { cols: 2, rows: 5, w: 91, h: 55, k: 1.0, note: "名刺サイズ" },
+  8:  { cols: 2, rows: 4, w: 97, h: 70, k: 1.1, note: "少し大きめ" },
+  6:  { cols: 2, rows: 3, w: 97, h: 93, k: 1.2, note: "大きめ" },
+};
+const LAYOUT_ORDER = [10, 8, 6];
+const A4 = { w: 210, h: 297 };
 const NEXT_MONTH_FROM_DAY = 20; // この日以降に開いたら翌月を初期表示
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -273,6 +310,7 @@ const WD = ["日", "月", "火", "水", "木", "金", "土"];
 const state = {
   y: 0, m: 0,              // m は 1〜12
   name: "", store: "",
+  layout: 10,              // LAYOUTS のキー
   brush: "own",
   marks: {},               // "y-m-d" -> "own" | "o1" | "o2"
   kinds: {
@@ -335,18 +373,19 @@ function cardHTML() {
   const mk = (k) => { const c = color(state.kinds[k].color); return `background:${c.bg};color:${c.fg}`; };
   const sw = (k) => `<i class="c-mk ${shape(k)}" style="background:${color(state.kinds[k].color).bg}"></i>`;
 
-  let rows = "", cells = "";
-  for (let i = 0; i < first; i++) cells += "<td></td>";
+  // 週の数だけ同じ高さの行を作る（CSS grid の --weeks）
+  const weeks = Math.ceil((first + n) / 7);
+  let cells = WD.map((w, i) => `<div class="th ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</div>`).join("");
+  cells += "<div></div>".repeat(first);
   for (let d = 1; d <= n; d++) {
     const wd = (first + d - 1) % 7;
     const cls = wd === 0 ? "sun" : wd === 6 ? "sat" : "";
     const k = mm[d];
     cells += k
-      ? `<td><span class="mk ${shape(k)}" style="${mk(k)}">${d}</span></td>`
-      : `<td class="${cls}">${d}</td>`;
-    if (wd === 6) { rows += `<tr>${cells}</tr>`; cells = ""; }
+      ? `<div><span class="mk ${shape(k)}" style="${mk(k)}">${d}</span></div>`
+      : `<div class="${cls}">${d}</div>`;
   }
-  if (cells) { const rest = 7 - ((first + n) % 7); rows += `<tr>${cells}${"<td></td>".repeat(rest === 7 ? 0 : rest)}</tr>`; }
+  cells += "<div></div>".repeat(weeks * 7 - first - n);
 
   const usedOthers = ["o1", "o2"].filter((k) => Object.values(mm).includes(k));
   const legend = usedOthers.length
@@ -355,12 +394,13 @@ function cardHTML() {
   const nameTxt = state.name.trim() ? `<b>${esc(state.name.trim())}</b>` : `<b class="blank">（未入力）</b>`;
   const storeTxt = state.store ? `<b>${esc(state.store)}</b>` : `<b class="blank">（未選択）</b>`;
 
-  return `<div class="card">
+  const L = LAYOUTS[state.layout];
+  return `<div class="card" style="--w:${L.w}mm;--h:${L.h}mm;--k:${L.k}">
     <div class="c-head"><span class="c-title">出勤日のご案内</span><span class="c-month">${y}年 <b>${m}</b>月</span></div>
     <div class="c-info"><span>担当：${nameTxt}</span><span>店舗：${storeTxt}</span></div>
     <div class="c-note"><span>${sw("own")}の付いた日が出勤日です。</span></div>
     ${legend}
-    <table class="c-cal"><thead><tr>${WD.map((w, i) => `<th class="${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
+    <div class="c-cal" style="--weeks:${weeks}">${cells}</div>
     <div class="c-foot">またのご相談をお待ちしております。<small>※出勤予定は変更になる場合がございます。</small></div>
   </div>`;
 }
@@ -440,13 +480,34 @@ function fitPreview() {
   stage.style.height = `${Math.ceil(h * s)}px`;
 }
 
+function renderSizes() {
+  $("sizes").innerHTML = LAYOUT_ORDER.map((n) => {
+    const L = LAYOUTS[n];
+    return `<button type="button" data-layout="${n}" aria-pressed="${state.layout === n}"><b>A4で${n}枚</b><span>${L.w}×${L.h}mm</span></button>`;
+  }).join("");
+  const L = LAYOUTS[state.layout];
+  $("print").textContent = `印刷する（A4に${state.layout}枚）`;
+  $("preview-title").textContent = `見本（実物は ${L.w}×${L.h}mm・${L.note}）`;
+}
+
+function applySheetLayout() {
+  const L = LAYOUTS[state.layout];
+  const s = $("sheet").style;
+  s.gridTemplateColumns = `repeat(${L.cols}, ${L.w}mm)`;
+  s.gridAutoRows = `${L.h}mm`;
+  s.width = `${L.cols * L.w}mm`;
+  s.marginTop = `${Math.max(0, (A4.h - L.rows * L.h) / 2)}mm`;
+}
+
 function render() {
   renderBrushes();
   renderInputCal();
   renderKinds();
+  renderSizes();
   const html = cardHTML();
   $("stage").innerHTML = html;
-  $("sheet").innerHTML = html.repeat(CARDS_PER_SHEET);
+  $("sheet").innerHTML = html.repeat(state.layout);
+  applySheetLayout();
   fitPreview();
   renderMsgs();
 }
@@ -509,6 +570,11 @@ function init() {
   });
   $("add-o2").addEventListener("click", () => {
     state.kinds.o2.enabled = true; state.brush = "o2"; flash = ""; render();
+  });
+
+  $("sizes").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-layout]"); if (!b) return;
+    state.layout = Number(b.dataset.layout); render();
   });
 
   $("print").addEventListener("click", () => {
