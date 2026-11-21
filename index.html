@@ -248,6 +248,7 @@
         <div class="step-head"><span class="step-no">3</span>出勤日を押す <small>もう一度押すと外れます</small></div>
         <div class="brushes" id="brushes" role="group" aria-label="付ける種類"></div>
         <div class="incal" id="incal"></div>
+        <p class="hint" id="holidays"></p>
         <div class="count"><span id="count"></span><button type="button" class="linkbtn" id="clear-month">この月の印をすべて外す</button></div>
       </div>
 
@@ -331,6 +332,55 @@ const kindLabel = (k) => (k === "own" ? "当店で出勤" : `他店${CIRCLED[sta
 const otherName = (k) => state.kinds[k].store || "他店";
 const activeKinds = () => ["own", ...state.others];
 
+// ===== 祝日（「国民の祝日に関する法律」の現行ルールで計算。2000〜2099年対応） =====
+// 春分・秋分は天文計算の近似式。正式には前年2月の官報で決まるため、念のため画面に祝日一覧を出して確認できるようにしている。
+// 法改正や特例（例：2020・2021年のオリンピック移動）は反映しないので、変わったら HOLIDAY_EXTRA / HOLIDAY_REMOVE で調整する。
+const HOLIDAY_EXTRA = {};   // 例：{ "2027-5-1": "臨時の祝日" }
+const HOLIDAY_REMOVE = [];  // 例：["2027-7-19"]
+const holidayCache = {};
+function holidaysOf(y) {
+  if (holidayCache[y]) return holidayCache[y];
+  const h = {};                                   // "m-d" -> 名前
+  const set = (m, d, name) => { h[`${m}-${d}`] = name; };
+  const nthMonday = (m, nth) => { const f = new Date(y, m - 1, 1).getDay(); return 1 + ((8 - f) % 7) + (nth - 1) * 7; };
+  const t = y - 1980;
+  set(1, 1, "元日");
+  set(1, nthMonday(1, 2), "成人の日");
+  set(2, 11, "建国記念の日");
+  set(2, 23, "天皇誕生日");
+  set(3, Math.floor(20.8431 + 0.242194 * t - Math.floor(t / 4)), "春分の日");
+  set(4, 29, "昭和の日");
+  set(5, 3, "憲法記念日"); set(5, 4, "みどりの日"); set(5, 5, "こどもの日");
+  set(7, nthMonday(7, 3), "海の日");
+  set(8, 11, "山の日");
+  set(9, nthMonday(9, 3), "敬老の日");
+  set(9, Math.floor(23.2488 + 0.242194 * t - Math.floor(t / 4)), "秋分の日");
+  set(10, nthMonday(10, 2), "スポーツの日");
+  set(11, 3, "文化の日");
+  set(11, 23, "勤労感謝の日");
+  const is = (dt) => h[`${dt.getMonth() + 1}-${dt.getDate()}`] !== undefined && dt.getFullYear() === y;
+  // 国民の休日：祝日にはさまれた平日（例：敬老の日と秋分の日の間）
+  for (let dt = new Date(y, 0, 2); dt.getFullYear() === y; dt.setDate(dt.getDate() + 1)) {
+    const prev = new Date(dt); prev.setDate(prev.getDate() - 1);
+    const next = new Date(dt); next.setDate(next.getDate() + 1);
+    if (!is(dt) && dt.getDay() !== 0 && is(prev) && is(next)) set(dt.getMonth() + 1, dt.getDate(), "国民の休日");
+  }
+  // 振替休日：祝日が日曜なら、その後の最初の「祝日でない日」
+  for (const k of Object.keys(h)) {
+    const [m, d] = k.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    if (dt.getDay() !== 0 || h[k] === "振替休日") continue;
+    do { dt.setDate(dt.getDate() + 1); } while (is(dt));
+    if (dt.getFullYear() === y) set(dt.getMonth() + 1, dt.getDate(), "振替休日");
+  }
+  for (const [k, name] of Object.entries(HOLIDAY_EXTRA)) { const [yy, m, d] = k.split("-").map(Number); if (yy === y) set(m, d, name); }
+  for (const k of HOLIDAY_REMOVE) { const [yy, m, d] = k.split("-").map(Number); if (yy === y) delete h[`${m}-${d}`]; }
+  return (holidayCache[y] = h);
+}
+const holidayName = (y, m, d) => holidaysOf(y)[`${m}-${d}`] || "";
+// 日付の文字色クラス：日曜・祝日＝赤（sun）、土曜＝青（sat）。土曜の祝日は赤を優先
+const dayClass = (y, m, d, wd) => (wd === 0 || holidayName(y, m, d) ? "sun" : wd === 6 ? "sat" : "");
+
 // 他店を1店追加（空いている id と、まだ使っていない色を割り当てる）
 function addOther() {
   if (state.others.length >= MAX_OTHERS) return null;
@@ -404,7 +454,7 @@ function cardHTML() {
   cells += "<div></div>".repeat(first);
   for (let d = 1; d <= n; d++) {
     const wd = (first + d - 1) % 7;
-    const cls = wd === 0 ? "sun" : wd === 6 ? "sat" : "";
+    const cls = dayClass(y, m, d, wd);
     const k = mm[d];
     cells += k
       ? `<div><span class="mk ${shape(k)}" style="${mk(k)}">${d}</span></div>`
@@ -447,14 +497,21 @@ function renderInputCal() {
   for (let d = 1; d <= n; d++) {
     const wd = (first + d - 1) % 7;
     const k = mm[d];
+    const hol = holidayName(y, m, d);
+    const tip = hol ? ` title="${hol}"` : "";
     if (k) {
       const c = color(state.kinds[k].color);
-      h += `<button type="button" data-day="${d}" class="on-${k}" style="background:${c.bg};color:${c.fg}" aria-pressed="true" aria-label="${m}月${d}日 ${kindLabel(k)}">${d}</button>`;
+      h += `<button type="button" data-day="${d}" class="on-${k}" style="background:${c.bg};color:${c.fg}" aria-pressed="true" aria-label="${m}月${d}日 ${hol} ${kindLabel(k)}"${tip}>${d}</button>`;
     } else {
-      h += `<button type="button" data-day="${d}" class="${wd === 0 ? "sun" : wd === 6 ? "sat" : ""}" aria-pressed="false" aria-label="${m}月${d}日">${d}</button>`;
+      h += `<button type="button" data-day="${d}" class="${dayClass(y, m, d, wd)}" aria-pressed="false" aria-label="${m}月${d}日 ${hol}"${tip}>${d}</button>`;
     }
   }
   $("incal").innerHTML = h;
+  const hols = Object.entries(holidaysOf(y)).filter(([md]) => md.startsWith(`${m}-`))
+    .map(([md, name]) => [Number(md.split("-")[1]), name]).sort((a, b) => a[0] - b[0]);
+  $("holidays").textContent = hols.length
+    ? `この月の祝日（赤字）：${hols.map(([d, name]) => `${d}日 ${name}`).join("、")}`
+    : "この月の祝日：なし";
   const cnt = {};
   Object.values(mm).forEach((k) => { cnt[k] = (cnt[k] || 0) + 1; });
   $("count").textContent = activeKinds().map((k) => `${k === "own" ? "当店" : kindLabel(k)} ${cnt[k] || 0}日`).join("　/　");
