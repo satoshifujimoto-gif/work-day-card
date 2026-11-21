@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>出勤日案内カード</title>
+<style>
+  :root {
+    --bg: #F3F5F7;
+    --surface: #FFFFFF;
+    --ink: #1E2638;
+    --muted: #5B6477;
+    --line: #DCE1E7;
+    --accent: #1D6B5F;
+    --accent-soft: #E2EFEB;
+    --on-accent: #FFFFFF;
+    --warn: #9A5B00;
+    --warn-soft: #FFF3DC;
+    --err: #B42318;
+    --err-soft: #FDECEA;
+    --radius: 12px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #12161D; --surface: #1A2029; --ink: #E6E9EF; --muted: #9AA3B5; --line: #2C3442;
+      --accent: #5FC2AE; --accent-soft: #1C3430; --on-accent: #0D1B18;
+      --warn: #F2B458; --warn-soft: #3A2C14; --err: #FF8A80; --err-soft: #3A1C1A;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #12161D; --surface: #1A2029; --ink: #E6E9EF; --muted: #9AA3B5; --line: #2C3442;
+    --accent: #5FC2AE; --accent-soft: #1C3430; --on-accent: #0D1B18;
+    --warn: #F2B458; --warn-soft: #3A2C14; --err: #FF8A80; --err-soft: #3A1C1A;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    padding: 20px 16px 40px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 20px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+  h1 { font-size: 22px; margin: 0; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .layout { display: grid; gap: 20px; }
+  @media (min-width: 880px) {
+    .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+    .preview { position: sticky; top: 16px; }
+  }
+  .panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px; display: grid; gap: 22px; min-width: 0;
+  }
+  .step { display: grid; gap: 10px; min-width: 0; }
+  .step-head { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; }
+  .step-no {
+    width: 26px; height: 26px; border-radius: 50%; flex: none;
+    display: inline-grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent); font-size: 13px;
+  }
+  .step-head small { font-weight: 400; color: var(--muted); font-size: 13px; }
+
+  label.field { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+  select, input[type="text"] {
+    font: inherit; color: var(--ink); background: var(--surface);
+    min-height: 44px; padding: 8px 10px; width: 100%; min-width: 0;
+    border: 1.5px solid var(--line); border-radius: 8px;
+  }
+  select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row2 { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .field.missing select, .field.missing input { border-color: var(--err); background: var(--err-soft); }
+
+  /* 塗る種類 */
+  .brushes { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+  .brushes button {
+    font: inherit; font-size: 14px; min-height: 48px; cursor: pointer;
+    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+    border-radius: 10px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .brushes button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; box-shadow: inset 0 0 0 1px var(--accent); }
+  .sw { width: 18px; height: 18px; flex: none; display: inline-block; }
+  .sw.circle { border-radius: 50%; }
+  .sw.square { border-radius: 3px; }
+
+  /* 入力用カレンダー */
+  .incal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .incal .wd { text-align: center; font-size: 12px; color: var(--muted); padding: 2px 0; }
+  .incal .wd.sun, .incal button.sun { color: #D33; }
+  .incal .wd.sat, .incal button.sat { color: #2F5BC9; }
+  :root[data-theme="dark"] .incal .wd.sat, :root[data-theme="dark"] .incal button.sat { color: #7FA2F5; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .incal .wd.sat, :root:not([data-theme="light"]) .incal button.sat { color: #7FA2F5; } }
+  .incal button {
+    font: inherit; font-size: 15px; font-weight: 700; aspect-ratio: 1 / 0.9; min-height: 40px;
+    border: 1.5px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink);
+    cursor: pointer; padding: 0; display: grid; place-items: center;
+  }
+  .incal button:hover { border-color: var(--accent); }
+  .incal button.on-own { border-radius: 50%; border-color: transparent; }
+  .incal button.on-o1, .incal button.on-o2 { border-color: transparent; }
+  .count { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; align-items: center; }
+  .linkbtn { font: inherit; font-size: 13px; background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; padding: 4px 0; }
+
+  /* 色・他店 */
+  .kind { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: var(--bg); }
+  .kind-head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; flex-wrap: wrap; }
+  .kind-head .linkbtn { margin-left: auto; }
+  .palette { display: flex; flex-wrap: wrap; gap: 6px; }
+  .palette button {
+    width: 36px; height: 36px; border-radius: 8px; cursor: pointer; padding: 0;
+    border: 2px solid transparent; display: grid; place-items: center; color: #fff; font-size: 16px; font-weight: 700;
+  }
+  .palette button[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--surface) inset; }
+  .add-btn {
+    font: inherit; font-size: 14px; min-height: 44px; cursor: pointer;
+    border: 1.5px dashed var(--line); background: none; color: var(--accent); border-radius: 10px;
+  }
+
+  .msgs { display: grid; gap: 6px; }
+  .msg { border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+  .msg.err { background: var(--err-soft); color: var(--err); font-weight: 700; }
+  .msg.warn { background: var(--warn-soft); color: var(--warn); }
+  .msg.ok { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+
+  .print-btn {
+    font: inherit; font-size: 17px; font-weight: 700; min-height: 54px; width: 100%; cursor: pointer;
+    border: none; border-radius: 10px; background: var(--accent); color: var(--on-accent);
+  }
+  .print-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .hint { font-size: 12px; color: var(--muted); margin: 0; line-height: 1.6; }
+
+  /* プレビュー */
+  .preview h2 { margin: 0; font-size: 15px; }
+  .stage { position: relative; width: 100%; overflow: hidden; }
+  .stage .card { position: absolute; left: 0; top: 0; transform-origin: 0 0; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+
+  /* ===== カード本体（mm単位） ===== */
+  .card {
+    width: 91mm; height: 55mm; background: #fff; color: #1E2638;
+    padding: 3mm 4mm 2.6mm; display: flex; flex-direction: column; gap: 0.9mm; overflow: hidden;
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .c-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .c-title { font-size: 9.5pt; font-weight: 700; letter-spacing: 0.04em; }
+  .c-month { font-size: 8pt; font-weight: 700; }
+  .c-month b { font-size: 11pt; }
+  .c-info { display: flex; gap: 4mm; font-size: 6.8pt; white-space: nowrap; overflow: hidden; }
+  .c-info b { font-weight: 700; }
+  .c-info .blank { color: #C0392B; }
+  .c-note, .c-legend { font-size: 6.2pt; display: flex; flex-wrap: wrap; gap: 0 3mm; align-items: center; line-height: 1.35; }
+  .c-legend span, .c-note span { display: inline-flex; align-items: center; gap: 0.8mm; white-space: nowrap; }
+  .c-mk { display: inline-block; width: 2.4mm; height: 2.4mm; }
+  .c-mk.circle { border-radius: 50%; }
+  .c-mk.square { border-radius: 0.4mm; }
+  .c-cal { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .c-cal th { font-size: 5.6pt; font-weight: 700; height: 2.8mm; padding: 0; border: 0.15mm solid #C9CED6; background: #F2F4F7; }
+  .c-cal td { height: 3.55mm; padding: 0; text-align: center; vertical-align: middle; border: 0.15mm solid #C9CED6; font-size: 6.6pt; }
+  .c-cal .sun { color: #D33; }
+  .c-cal .sat { color: #2F5BC9; }
+  .c-cal .mk { display: inline-grid; place-items: center; width: 3.25mm; height: 3.25mm; font-weight: 700; font-size: 6.2pt; line-height: 1; }
+  .c-cal .mk.circle { border-radius: 50%; }
+  .c-cal .mk.square { border-radius: 0.5mm; }
+  .c-foot { margin-top: auto; font-size: 6.4pt; line-height: 1.35; }
+  .c-foot small { display: block; font-size: 5pt; color: #444; }
+
+  /* 印刷用（画面では非表示） */
+  .print-sheet, .print-error { display: none; }
+
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    body { background: #fff; padding: 0; margin: 0; }
+    .wrap { display: none !important; }
+    .print-sheet {
+      display: grid; grid-template-columns: repeat(2, 91mm); grid-auto-rows: 55mm;
+      width: 182mm; margin: 11mm auto 0; page-break-after: avoid;
+    }
+    .print-sheet .card { outline: 0.2mm dashed #9AA0A8; outline-offset: -0.1mm; }
+    body.blocked .print-sheet { display: none; }
+    body.blocked .print-error {
+      display: block; margin: 30mm 20mm; padding: 10mm; border: 1mm solid #B42318;
+      color: #B42318; font-size: 16pt; font-weight: 700;
+    }
+    .print-error ul { font-size: 13pt; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>出勤日案内カード</h1>
+    <p>名刺サイズ（91×55mm）× A4に10枚。入力内容は保存されません。</p>
+  </header>
+
+  <div class="layout">
+    <!-- 入力 -->
+    <section class="panel" aria-label="入力">
+      <div class="step">
+        <div class="step-head"><span class="step-no">1</span>何月のカードですか</div>
+        <label class="field"><span>年月</span><select id="ym"></select></label>
+      </div>
+
+      <div class="step">
+        <div class="step-head"><span class="step-no">2</span>担当者と店舗</div>
+        <div class="row2">
+          <label class="field" id="f-name"><span>担当者名（12文字まで）</span><input type="text" id="name" maxlength="12" placeholder="例：山田" autocomplete="off"></label>
+          <label class="field" id="f-store"><span>店舗</span><select id="store"></select></label>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-head"><span class="step-no">3</span>出勤日を押す <small>もう一度押すと外れます</small></div>
+        <div class="brushes" id="brushes" role="group" aria-label="付ける種類"></div>
+        <div class="incal" id="incal"></div>
+        <div class="count"><span id="count"></span><button type="button" class="linkbtn" id="clear-month">この月の印をすべて外す</button></div>
+      </div>
+
+      <div class="step">
+        <div class="step-head"><span class="step-no">4</span>色と他店 <small>他店の店名は空欄でもOK</small></div>
+        <div id="kinds" style="display:grid; gap:10px"></div>
+        <button type="button" class="add-btn" id="add-o2">＋ 他店をもう1店追加</button>
+      </div>
+
+      <div class="msgs" id="msgs" aria-live="polite"></div>
+      <button type="button" class="print-btn" id="print">印刷する（A4に10枚）</button>
+      <p class="hint">印刷画面では「用紙：A4」「倍率：100%（実際のサイズ）」「余白：なし」にしてください。色が出ない場合は「背景のグラフィック」をオンにします。</p>
+    </section>
+
+    <!-- プレビュー -->
+    <section class="panel preview" aria-label="見本">
+      <h2>見本（実物は名刺サイズ）</h2>
+      <div class="stage" id="stage"></div>
+      <p class="hint">白黒で印刷しても、当店は「○」、他店は「□」の形で見分けられます。</p>
+    </section>
+  </div>
+</div>
+
+<div class="print-sheet" id="sheet"></div>
+<div class="print-error" id="print-error"></div>
+
+<script>
+// ===== 設定（改修はここ） =====
+const STORES = [
+  "イオン早岐店", "イオン島原店", "エレナ上小島店", "マックスバリュ佐々店",
+  "エレナ日見店", "住吉店", "諫早駅西口店", "エレナ長与店", "新大村駅前店",
+  "松浦志佐店", "エレナ大村中央店", "浜町店", "宝町店",
+];
+const COLORS = [
+  { id: "red",    name: "赤",     bg: "#D93A4A", fg: "#FFFFFF" },
+  { id: "pink",   name: "ピンク", bg: "#E5609A", fg: "#FFFFFF" },
+  { id: "orange", name: "オレンジ", bg: "#E8801A", fg: "#FFFFFF" },
+  { id: "yellow", name: "黄",     bg: "#F2C230", fg: "#3A2C00" },
+  { id: "green",  name: "緑",     bg: "#2E9E5B", fg: "#FFFFFF" },
+  { id: "sky",    name: "水色",   bg: "#2BA3D9", fg: "#FFFFFF" },
+  { id: "blue",   name: "青",     bg: "#2F5BC9", fg: "#FFFFFF" },
+  { id: "purple", name: "紫",     bg: "#7B4FC2", fg: "#FFFFFF" },
+];
+const CARDS_PER_SHEET = 10;
+const NEXT_MONTH_FROM_DAY = 20; // この日以降に開いたら翌月を初期表示
+const WD = ["日", "月", "火", "水", "木", "金", "土"];
+
+// ===== 状態（保存はしない） =====
+const state = {
+  y: 0, m: 0,              // m は 1〜12
+  name: "", store: "",
+  brush: "own",
+  marks: {},               // "y-m-d" -> "own" | "o1" | "o2"
+  kinds: {
+    own: { color: "red" },
+    o1:  { color: "blue",  store: "" },
+    o2:  { color: "green", store: "", enabled: false },
+  },
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const color = (id) => COLORS.find((c) => c.id === id) || COLORS[0];
+const key = (y, m, d) => `${y}-${m}-${d}`;
+const daysIn = (y, m) => new Date(y, m, 0).getDate();
+const shape = (k) => (k === "own" ? "circle" : "square");
+const kindLabel = (k) => (k === "own" ? "当店で出勤" : k === "o1" ? "他店①" : "他店②");
+const otherName = (k) => state.kinds[k].store || "他店";
+const activeKinds = () => ["own", "o1"].concat(state.kinds.o2.enabled ? ["o2"] : []);
+
+function monthMarks() {
+  const out = {};
+  const n = daysIn(state.y, state.m);
+  for (let d = 1; d <= n; d++) {
+    const v = state.marks[key(state.y, state.m, d)];
+    if (v && activeKinds().includes(v)) out[d] = v;
+  }
+  return out;
+}
+
+// ===== チェック（ボタン・画面・印刷すべてここを使う） =====
+function problems() {
+  const errs = [], warns = [];
+  const mm = monthMarks();
+  const used = (k) => Object.values(mm).includes(k);
+  if (!state.name.trim()) errs.push("担当者名を入力してください。");
+  if (!state.store) errs.push("店舗を選んでください。");
+  if (Object.keys(mm).length === 0) errs.push("出勤日を1日以上付けてください。");
+  for (const k of ["o1", "o2"]) {
+    if (!activeKinds().includes(k)) continue;
+    const s = state.kinds[k].store;
+    if (s && s === state.store) errs.push(`${kindLabel(k)}に当店と同じ店舗（${s}）が選ばれています。`);
+    if (used(k) && !s) warns.push(`要確認：${kindLabel(k)}の店名が空欄のため、カードには「他店で出勤」と表示されます。`);
+  }
+  if (state.kinds.o2.enabled && state.kinds.o1.store && state.kinds.o1.store === state.kinds.o2.store)
+    errs.push("他店①と他店②に同じ店舗が選ばれています。");
+  const ks = activeKinds();
+  for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++)
+    if (state.kinds[ks[i]].color === state.kinds[ks[j]].color)
+      errs.push(`${kindLabel(ks[i])}と${kindLabel(ks[j])}が同じ色（${color(state.kinds[ks[i]].color).name}）です。色を変えてください。`);
+  if (state.kinds.o2.enabled && used("o2") && !used("o1") ) warns.push("要確認：他店②だけに印が付いています（他店①は未使用）。");
+  return { errs, warns };
+}
+
+// ===== カード（プレビューと印刷で共通） =====
+function cardHTML() {
+  const { y, m } = state;
+  const mm = monthMarks();
+  const first = new Date(y, m - 1, 1).getDay();
+  const n = daysIn(y, m);
+  const mk = (k) => { const c = color(state.kinds[k].color); return `background:${c.bg};color:${c.fg}`; };
+  const sw = (k) => `<i class="c-mk ${shape(k)}" style="background:${color(state.kinds[k].color).bg}"></i>`;
+
+  let rows = "", cells = "";
+  for (let i = 0; i < first; i++) cells += "<td></td>";
+  for (let d = 1; d <= n; d++) {
+    const wd = (first + d - 1) % 7;
+    const cls = wd === 0 ? "sun" : wd === 6 ? "sat" : "";
+    const k = mm[d];
+    cells += k
+      ? `<td><span class="mk ${shape(k)}" style="${mk(k)}">${d}</span></td>`
+      : `<td class="${cls}">${d}</td>`;
+    if (wd === 6) { rows += `<tr>${cells}</tr>`; cells = ""; }
+  }
+  if (cells) { const rest = 7 - ((first + n) % 7); rows += `<tr>${cells}${"<td></td>".repeat(rest === 7 ? 0 : rest)}</tr>`; }
+
+  const usedOthers = ["o1", "o2"].filter((k) => Object.values(mm).includes(k));
+  const legend = usedOthers.length
+    ? `<div class="c-legend">${usedOthers.map((k) => `<span>${sw(k)}＝${esc(otherName(k))}で出勤</span>`).join("")}</div>`
+    : "";
+  const nameTxt = state.name.trim() ? `<b>${esc(state.name.trim())}</b>` : `<b class="blank">（未入力）</b>`;
+  const storeTxt = state.store ? `<b>${esc(state.store)}</b>` : `<b class="blank">（未選択）</b>`;
+
+  return `<div class="card">
+    <div class="c-head"><span class="c-title">出勤日のご案内</span><span class="c-month">${y}年 <b>${m}</b>月</span></div>
+    <div class="c-info"><span>担当：${nameTxt}</span><span>店舗：${storeTxt}</span></div>
+    <div class="c-note"><span>${sw("own")}の付いた日が出勤日です。</span></div>
+    ${legend}
+    <table class="c-cal"><thead><tr>${WD.map((w, i) => `<th class="${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
+    <div class="c-foot">またのご相談をお待ちしております。<small>※出勤予定は変更になる場合がございます。</small></div>
+  </div>`;
+}
+
+// ===== 画面の描画 =====
+function renderBrushes() {
+  $("brushes").innerHTML = activeKinds().map((k) => {
+    const c = color(state.kinds[k].color);
+    const label = k === "own" ? "当店で出勤" : `${kindLabel(k)}：${esc(otherName(k))}`;
+    return `<button type="button" data-brush="${k}" aria-pressed="${state.brush === k}"><i class="sw ${shape(k)}" style="background:${c.bg}"></i>${label}</button>`;
+  }).join("");
+}
+
+function renderInputCal() {
+  const { y, m } = state;
+  const first = new Date(y, m - 1, 1).getDay();
+  const n = daysIn(y, m);
+  const mm = monthMarks();
+  let h = WD.map((w, i) => `<div class="wd ${i === 0 ? "sun" : i === 6 ? "sat" : ""}">${w}</div>`).join("");
+  for (let i = 0; i < first; i++) h += "<div></div>";
+  for (let d = 1; d <= n; d++) {
+    const wd = (first + d - 1) % 7;
+    const k = mm[d];
+    if (k) {
+      const c = color(state.kinds[k].color);
+      h += `<button type="button" data-day="${d}" class="on-${k}" style="background:${c.bg};color:${c.fg}" aria-pressed="true" aria-label="${m}月${d}日 ${kindLabel(k)}">${d}</button>`;
+    } else {
+      h += `<button type="button" data-day="${d}" class="${wd === 0 ? "sun" : wd === 6 ? "sat" : ""}" aria-pressed="false" aria-label="${m}月${d}日">${d}</button>`;
+    }
+  }
+  $("incal").innerHTML = h;
+  const cnt = { own: 0, o1: 0, o2: 0 };
+  Object.values(mm).forEach((k) => cnt[k]++);
+  const parts = [`当店 ${cnt.own}日`, `他店① ${cnt.o1}日`];
+  if (state.kinds.o2.enabled) parts.push(`他店② ${cnt.o2}日`);
+  $("count").textContent = parts.join("　/　");
+}
+
+function renderKinds() {
+  const storeOpts = (sel, exclude) => `<option value="">（空欄＝「他店」と表示）</option>` +
+    STORES.map((s) => `<option value="${esc(s)}"${s === sel ? " selected" : ""}>${esc(s)}${s === exclude ? "（当店）" : ""}</option>`).join("");
+  $("kinds").innerHTML = activeKinds().map((k) => {
+    const kd = state.kinds[k];
+    const head = k === "own"
+      ? `<i class="sw circle" style="background:${color(kd.color).bg}"></i>当店の出勤日の色`
+      : `<i class="sw square" style="background:${color(kd.color).bg}"></i>${kindLabel(k)}の色と店名${k === "o2" ? `<button type="button" class="linkbtn" data-remove="o2">この他店を削除</button>` : ""}`;
+    const storeSel = k === "own" ? "" :
+      `<label class="field"><span>${kindLabel(k)}の店名（任意）</span><select data-other="${k}">${storeOpts(kd.store, state.store)}</select></label>`;
+    const pal = COLORS.map((c) =>
+      `<button type="button" data-kind="${k}" data-color="${c.id}" aria-pressed="${kd.color === c.id}" aria-label="${c.name}" title="${c.name}" style="background:${c.bg};color:${c.fg}">${kd.color === c.id ? "✓" : ""}</button>`).join("");
+    return `<div class="kind"><div class="kind-head">${head}</div>${storeSel}<div class="palette">${pal}</div></div>`;
+  }).join("");
+  $("add-o2").hidden = state.kinds.o2.enabled;
+}
+
+let flash = "";
+function renderMsgs() {
+  const { errs, warns } = problems();
+  let h = errs.map((e) => `<div class="msg err">${esc(e)}</div>`).join("") + warns.map((w) => `<div class="msg warn">${esc(w)}</div>`).join("");
+  if (flash) h += `<div class="msg warn">${esc(flash)}</div>`;
+  if (!errs.length) h = `<div class="msg ok">印刷できます。</div>` + h;
+  $("msgs").innerHTML = h;
+  $("f-name").classList.toggle("missing", !state.name.trim());
+  $("f-store").classList.toggle("missing", !state.store);
+  document.body.classList.toggle("blocked", errs.length > 0);
+  $("print-error").innerHTML = `印刷できません。画面に戻って直してください。<ul>${errs.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>`;
+}
+
+function fitPreview() {
+  const stage = $("stage");
+  const card = stage.querySelector(".card");
+  if (!card) return;
+  card.style.transform = "none";
+  const w = card.offsetWidth, h = card.offsetHeight;
+  const s = Math.min(2.2, stage.clientWidth / w);
+  card.style.transform = `scale(${s})`;
+  stage.style.height = `${Math.ceil(h * s)}px`;
+}
+
+function render() {
+  renderBrushes();
+  renderInputCal();
+  renderKinds();
+  const html = cardHTML();
+  $("stage").innerHTML = html;
+  $("sheet").innerHTML = html.repeat(CARDS_PER_SHEET);
+  fitPreview();
+  renderMsgs();
+}
+
+// ===== 初期化 =====
+function initYm() {
+  const now = new Date();
+  let y = now.getFullYear(), m = now.getMonth() + 1;
+  const opts = [];
+  for (let off = -1; off <= 3; off++) {
+    const dt = new Date(y, m - 1 + off, 1);
+    opts.push({ y: dt.getFullYear(), m: dt.getMonth() + 1 });
+  }
+  const def = new Date(y, m - 1 + (now.getDate() >= NEXT_MONTH_FROM_DAY ? 1 : 0), 1);
+  state.y = def.getFullYear(); state.m = def.getMonth() + 1;
+  $("ym").innerHTML = opts.map((o) => `<option value="${o.y}-${o.m}"${o.y === state.y && o.m === state.m ? " selected" : ""}>${o.y}年${o.m}月</option>`).join("");
+}
+
+function init() {
+  initYm();
+  $("store").innerHTML = `<option value="">選んでください</option>` + STORES.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+
+  $("ym").addEventListener("change", (e) => { const [y, m] = e.target.value.split("-").map(Number); state.y = y; state.m = m; flash = ""; render(); });
+  $("name").addEventListener("input", (e) => { state.name = e.target.value; render(); });
+  $("store").addEventListener("change", (e) => { state.store = e.target.value; flash = ""; render(); });
+
+  $("brushes").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-brush]"); if (!b) return;
+    state.brush = b.dataset.brush; renderBrushes();
+  });
+  $("incal").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-day]"); if (!b) return;
+    const k = key(state.y, state.m, Number(b.dataset.day));
+    if (state.marks[k] === state.brush) delete state.marks[k]; else state.marks[k] = state.brush;
+    flash = ""; render();
+    const again = $("incal").querySelector(`[data-day="${b.dataset.day}"]`); if (again) again.focus();
+  });
+  $("clear-month").addEventListener("click", () => {
+    const n = daysIn(state.y, state.m);
+    for (let d = 1; d <= n; d++) delete state.marks[key(state.y, state.m, d)];
+    flash = `${state.y}年${state.m}月の印をすべて外しました。`; render();
+  });
+
+  $("kinds").addEventListener("click", (e) => {
+    const c = e.target.closest("[data-color]");
+    if (c) { state.kinds[c.dataset.kind].color = c.dataset.color; flash = ""; render(); return; }
+    const r = e.target.closest("[data-remove]");
+    if (r) {
+      let n = 0;
+      for (const k in state.marks) if (state.marks[k] === "o2") { delete state.marks[k]; n++; }
+      state.kinds.o2.enabled = false; state.kinds.o2.store = "";
+      if (state.brush === "o2") state.brush = "own";
+      flash = n ? `他店②を削除し、他店②の印（${n}日）も外しました。` : "他店②を削除しました。";
+      render();
+    }
+  });
+  $("kinds").addEventListener("change", (e) => {
+    const s = e.target.closest("[data-other]"); if (!s) return;
+    state.kinds[s.dataset.other].store = s.value; flash = ""; render();
+  });
+  $("add-o2").addEventListener("click", () => {
+    state.kinds.o2.enabled = true; state.brush = "o2"; flash = ""; render();
+  });
+
+  $("print").addEventListener("click", () => {
+    const { errs } = problems();
+    renderMsgs();
+    if (errs.length) { $("msgs").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+    window.print();
+  });
+
+  window.addEventListener("resize", fitPreview);
+  render();
+}
+init();
+</script>
+</body>
+</html>
