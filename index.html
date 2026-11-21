@@ -181,7 +181,8 @@
   .c-cal > .th { font-size: calc(var(--k) * 5.6pt); font-weight: 700; background: #F2F4F7; }
   .c-cal .sun { color: #D33; }
   .c-cal .sat { color: #2F5BC9; }
-  .c-cal .mk { display: inline-grid; place-items: center; width: calc(var(--k) * 3.25mm); height: calc(var(--k) * 3.25mm); font-weight: 700; font-size: calc(var(--k) * 6.2pt); line-height: 1; }
+  /* ○□はマスの高さに合わせて縮む（10枚で6週＋他店が多い月でも枠線にかからない） */
+  .c-cal .mk { display: inline-grid; place-items: center; height: min(calc(var(--k) * 3.25mm), 92%); width: auto; aspect-ratio: 1; font-weight: 700; font-size: calc(var(--k) * 6.2pt); line-height: 1; }
   .c-cal .mk.circle { border-radius: 50%; }
   .c-cal .mk.square { border-radius: 0.5mm; }
   .c-foot { font-size: calc(var(--k) * 6.4pt); line-height: 1.35; }
@@ -305,6 +306,9 @@ const LAYOUT_ORDER = [10, 8, 6];
 const A4 = { w: 210, h: 297 };
 const NEXT_MONTH_FROM_DAY = 20; // この日以降に開いたら翌月を初期表示
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
+const MAX_OTHERS = 5;          // 他店は最大5店（当店と合わせて6色。COLORS は8色）
+const OTHER_DEFAULT_COLORS = ["blue", "green", "purple", "orange", "sky"];
+const CIRCLED = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
 
 // ===== 状態（保存はしない） =====
 const state = {
@@ -312,12 +316,9 @@ const state = {
   name: "", store: "",
   layout: 10,              // LAYOUTS のキー
   brush: "own",
-  marks: {},               // "y-m-d" -> "own" | "o1" | "o2"
-  kinds: {
-    own: { color: "red" },
-    o1:  { color: "blue",  store: "" },
-    o2:  { color: "green", store: "", enabled: false },
-  },
+  marks: {},               // "y-m-d" -> "own" | "o1"〜"o5"
+  kinds: { own: { color: "red" } },  // 他店は o1〜o5 を { color, store } で追加
+  others: [],              // 使用中の他店の id（表示順）。他店①②…の番号はこの並び順
 };
 
 const $ = (id) => document.getElementById(id);
@@ -326,9 +327,30 @@ const color = (id) => COLORS.find((c) => c.id === id) || COLORS[0];
 const key = (y, m, d) => `${y}-${m}-${d}`;
 const daysIn = (y, m) => new Date(y, m, 0).getDate();
 const shape = (k) => (k === "own" ? "circle" : "square");
-const kindLabel = (k) => (k === "own" ? "当店で出勤" : k === "o1" ? "他店①" : "他店②");
+const kindLabel = (k) => (k === "own" ? "当店で出勤" : `他店${CIRCLED[state.others.indexOf(k)]}`);
 const otherName = (k) => state.kinds[k].store || "他店";
-const activeKinds = () => ["own", "o1"].concat(state.kinds.o2.enabled ? ["o2"] : []);
+const activeKinds = () => ["own", ...state.others];
+
+// 他店を1店追加（空いている id と、まだ使っていない色を割り当てる）
+function addOther() {
+  if (state.others.length >= MAX_OTHERS) return null;
+  let i = 1; while (state.others.includes(`o${i}`)) i++;
+  const id = `o${i}`;
+  const usedColors = activeKinds().map((k) => state.kinds[k].color);
+  const col = OTHER_DEFAULT_COLORS.concat(COLORS.map((c) => c.id)).find((c) => !usedColors.includes(c)) || "blue";
+  state.kinds[id] = { color: col, store: "" };
+  state.others.push(id);
+  return id;
+}
+// 他店を削除（その他店の印も全月分外し、外した日数を返す）
+function removeOther(id) {
+  let n = 0;
+  for (const k in state.marks) if (state.marks[k] === id) { delete state.marks[k]; n++; }
+  state.others = state.others.filter((x) => x !== id);
+  delete state.kinds[id];
+  if (state.brush === id) state.brush = "own";
+  return n;
+}
 
 function monthMarks() {
   const out = {};
@@ -348,19 +370,22 @@ function problems() {
   if (!state.name.trim()) errs.push("担当者名を入力してください。");
   if (!state.store) errs.push("店舗を選んでください。");
   if (Object.keys(mm).length === 0) errs.push("出勤日を1日以上付けてください。");
-  for (const k of ["o1", "o2"]) {
-    if (!activeKinds().includes(k)) continue;
+  for (const k of state.others) {
     const s = state.kinds[k].store;
     if (s && s === state.store) errs.push(`${kindLabel(k)}に当店と同じ店舗（${s}）が選ばれています。`);
-    if (used(k) && !s) warns.push(`要確認：${kindLabel(k)}の店名が空欄のため、カードには「他店で出勤」と表示されます。`);
+    if (used(k) && !s) warns.push(`要確認：${kindLabel(k)}の店名が空欄のため、カードには「他店」と表示されます。`);
   }
-  if (state.kinds.o2.enabled && state.kinds.o1.store && state.kinds.o1.store === state.kinds.o2.store)
-    errs.push("他店①と他店②に同じ店舗が選ばれています。");
+  const os = state.others;
+  for (let i = 0; i < os.length; i++) for (let j = i + 1; j < os.length; j++) {
+    const a = state.kinds[os[i]].store;
+    if (a && a === state.kinds[os[j]].store) errs.push(`${kindLabel(os[i])}と${kindLabel(os[j])}に同じ店舗（${a}）が選ばれています。`);
+  }
   const ks = activeKinds();
   for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++)
     if (state.kinds[ks[i]].color === state.kinds[ks[j]].color)
       errs.push(`${kindLabel(ks[i])}と${kindLabel(ks[j])}が同じ色（${color(state.kinds[ks[i]].color).name}）です。色を変えてください。`);
-  if (state.kinds.o2.enabled && used("o2") && !used("o1") ) warns.push("要確認：他店②だけに印が付いています（他店①は未使用）。");
+  const blankUsed = os.filter((k) => used(k) && !state.kinds[k].store);
+  if (blankUsed.length >= 2) warns.push(`要確認：${blankUsed.map(kindLabel).join("・")}がどれも「他店」と表示され、カード上では色でしか区別できません。`);
   return { errs, warns };
 }
 
@@ -387,10 +412,9 @@ function cardHTML() {
   }
   cells += "<div></div>".repeat(weeks * 7 - first - n);
 
-  const usedOthers = ["o1", "o2"].filter((k) => Object.values(mm).includes(k));
-  const legend = usedOthers.length
-    ? `<div class="c-legend">${usedOthers.map((k) => `<span>${sw(k)}＝${esc(otherName(k))}で出勤</span>`).join("")}</div>`
-    : "";
+  const usedOthers = state.others.filter((k) => Object.values(mm).includes(k));
+  // 他店の説明は「●の付いた日が出勤日です。」の後ろに続けて並べる（行数を節約）
+  const legend = usedOthers.map((k) => `<span>${sw(k)}＝${esc(otherName(k))}</span>`).join("");
   const nameTxt = state.name.trim() ? `<b>${esc(state.name.trim())}</b>` : `<b class="blank">（未入力）</b>`;
   const storeTxt = state.store ? `<b>${esc(state.store)}</b>` : `<b class="blank">（未選択）</b>`;
 
@@ -398,8 +422,7 @@ function cardHTML() {
   return `<div class="card" style="--w:${L.w}mm;--h:${L.h}mm;--k:${L.k}">
     <div class="c-head"><span class="c-title">出勤日のご案内</span><span class="c-month">${y}年 <b>${m}</b>月</span></div>
     <div class="c-info"><span>担当：${nameTxt}</span><span>店舗：${storeTxt}</span></div>
-    <div class="c-note"><span>${sw("own")}の付いた日が出勤日です。</span></div>
-    ${legend}
+    <div class="c-note"><span>${sw("own")}の付いた日が出勤日です。</span>${legend}</div>
     <div class="c-cal" style="--weeks:${weeks}">${cells}</div>
     <div class="c-foot">またのご相談をお待ちしております。<small>※出勤予定は変更になる場合がございます。</small></div>
   </div>`;
@@ -432,11 +455,9 @@ function renderInputCal() {
     }
   }
   $("incal").innerHTML = h;
-  const cnt = { own: 0, o1: 0, o2: 0 };
-  Object.values(mm).forEach((k) => cnt[k]++);
-  const parts = [`当店 ${cnt.own}日`, `他店① ${cnt.o1}日`];
-  if (state.kinds.o2.enabled) parts.push(`他店② ${cnt.o2}日`);
-  $("count").textContent = parts.join("　/　");
+  const cnt = {};
+  Object.values(mm).forEach((k) => { cnt[k] = (cnt[k] || 0) + 1; });
+  $("count").textContent = activeKinds().map((k) => `${k === "own" ? "当店" : kindLabel(k)} ${cnt[k] || 0}日`).join("　/　");
 }
 
 function renderKinds() {
@@ -446,14 +467,16 @@ function renderKinds() {
     const kd = state.kinds[k];
     const head = k === "own"
       ? `<i class="sw circle" style="background:${color(kd.color).bg}"></i>当店の出勤日の色`
-      : `<i class="sw square" style="background:${color(kd.color).bg}"></i>${kindLabel(k)}の色と店名${k === "o2" ? `<button type="button" class="linkbtn" data-remove="o2">この他店を削除</button>` : ""}`;
+      : `<i class="sw square" style="background:${color(kd.color).bg}"></i>${kindLabel(k)}の色と店名${state.others.length > 1 ? `<button type="button" class="linkbtn" data-remove="${k}">この他店を削除</button>` : ""}`;
     const storeSel = k === "own" ? "" :
       `<label class="field"><span>${kindLabel(k)}の店名（任意）</span><select data-other="${k}">${storeOpts(kd.store, state.store)}</select></label>`;
     const pal = COLORS.map((c) =>
       `<button type="button" data-kind="${k}" data-color="${c.id}" aria-pressed="${kd.color === c.id}" aria-label="${c.name}" title="${c.name}" style="background:${c.bg};color:${c.fg}">${kd.color === c.id ? "✓" : ""}</button>`).join("");
     return `<div class="kind"><div class="kind-head">${head}</div>${storeSel}<div class="palette">${pal}</div></div>`;
   }).join("");
-  $("add-o2").hidden = state.kinds.o2.enabled;
+  const left = MAX_OTHERS - state.others.length;
+  $("add-o2").hidden = left <= 0;
+  $("add-o2").textContent = `＋ 他店をもう1店追加（あと${left}店）`;
 }
 
 let flash = "";
@@ -528,6 +551,7 @@ function initYm() {
 
 function init() {
   initYm();
+  addOther();  // 他店①は最初から用意しておく
   $("store").innerHTML = `<option value="">選んでください</option>` + STORES.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
 
   $("ym").addEventListener("change", (e) => { const [y, m] = e.target.value.split("-").map(Number); state.y = y; state.m = m; flash = ""; render(); });
@@ -556,11 +580,10 @@ function init() {
     if (c) { state.kinds[c.dataset.kind].color = c.dataset.color; flash = ""; render(); return; }
     const r = e.target.closest("[data-remove]");
     if (r) {
-      let n = 0;
-      for (const k in state.marks) if (state.marks[k] === "o2") { delete state.marks[k]; n++; }
-      state.kinds.o2.enabled = false; state.kinds.o2.store = "";
-      if (state.brush === "o2") state.brush = "own";
-      flash = n ? `他店②を削除し、他店②の印（${n}日）も外しました。` : "他店②を削除しました。";
+      const id = r.dataset.remove;
+      const label = `${kindLabel(id)}（${otherName(id)}）`;
+      const n = removeOther(id);
+      flash = n ? `${label}を削除し、その印（${n}日）も外しました。他店の番号は詰め直しています。` : `${label}を削除しました。`;
       render();
     }
   });
@@ -569,7 +592,8 @@ function init() {
     state.kinds[s.dataset.other].store = s.value; flash = ""; render();
   });
   $("add-o2").addEventListener("click", () => {
-    state.kinds.o2.enabled = true; state.brush = "o2"; flash = ""; render();
+    const id = addOther(); if (!id) return;
+    state.brush = id; flash = ""; render();
   });
 
   $("sizes").addEventListener("click", (e) => {
